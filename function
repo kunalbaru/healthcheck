@@ -1,0 +1,38 @@
+DNS_Hosts()
+{
+        LOOKUP=$(nslookup $1)
+        FAIL_COUNT=$(echo $LOOKUP | grep "** server can't find " | wc -l);
+        if [[ $FAIL_COUNT -eq 1 ]];then
+           count=$((count+1))
+           echo "     9a$count. $HOSTNAME DNS Entery $1 Resolve Check     -        |   FAILED  |" | tee -a $FILE
+                   echo -e "\n" | tee -a $FILE
+        else
+           IPAdd=`host $1 | awk '{print $4}'`
+           if [[ `grep $IPAdd $Host_Fol | wc -l` -eq 1 ]]
+              then
+                if [[ `grep $IPAdd $Host_Fol | awk '{print $2}'` == "$1" ]];
+                then
+                count=$((count+1))
+                echo "     9a$count. $HOSTNAME DNS $1 IPAddress $IPAdd Check in HOSTS File     -       |   PASSED  |" | tee -a $FILE
+                                echo -e "\n" | tee -a $FILE
+                else
+                oldValue=`grep $IPAdd $Host_Fol | awk '{print $2}'`
+                sed -i "s/$oldValue/$1/g" $Host_Fol
+                if [[ `grep $IPAdd $Host_Fol | awk '{print $2}'` != "$1" ]];
+                then
+                echo "    9acount. $HOSTNAME DNS $1 Host Name Check in HOSTS File     -       |   FAILED  |" | tee -a $FILE
+                                        echo -e "\n" | tee -a $FILE
+                 else
+                   echo "     9a$count. $HOSTNAME DNS $1 Host Name Check in HOSTS File     -       |   PASSED  |" | tee -a $FILE
+                                   echo -e "\n" | tee -a $FILE
+                 fi
+                fi
+
+                else
+                count=$((count+1))
+                echo "     9b$count. $HOSTNAME DNS $1 IPAddress $IPAdd Check in HOSTS File    -        |   FAILED  |" | tee -a $FILE
+                                echo -e "\n" | tee -a $FILE
+           fi
+        return 0
+        fi
+}
