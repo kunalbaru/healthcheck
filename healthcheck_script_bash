@@ -20,22 +20,22 @@ echo -e "\n\n\n"
         active_alarm_list=`curl http://"$(kubectl get svc -n monitoring | grep eric-pm-alertmanager | awk '{ print $3 }')":9093/api/v1/alerts | python -mjson.tool|grep description | awk -F ":" '{print $2}' | wc -l`
         echo ${active_alarm_list}_active_alarms
 
-        pod_status=`kubectl get pods -A -o wide | grep -v -e Running -e Succeeded -e Completed |wc -l`
+        pod_status=`kubectl get pods -A | grep -v -e Running -e Succeeded -e Completed |wc -l`
         echo ${pod_status}_pod_in_error
 
-        node_status=`kubectl get nodes -A -o wide | grep -v -e Ready | wc -l`
+        node_status=`kubectl get nodes -A -o wide | grep -v -e Ready | sed '1d' | wc -l`
         echo ${node_status}_node_not_ready
 
         service_status=`kubectl get service -A | grep -i error | wc -l`
         echo ${service_status}_service_in_error
 
-        pvc_status=`kubectl get pvc -A | grep -v -e Bound | wc -l`
+        pvc_status=`kubectl get pvc -A | grep -v -e Bound | sed '1d' | wc -l`
         echo ${pvc_status}_pvc_not_bound
 
-        bmh_status=`kubectl get bmh -A | grep -v -e provisioned | wc -l`
+        bmh_status=`kubectl get bmh -A | grep -v -e provisioned | sed '1d' | wc -l`
         echo ${bmh_status}_not_provisioned
 
-        machine_status=`kubectl get machine -A | grep -v -e Running | wc -l`
+        machine_status=`kubectl get machine -A | grep -v -e Running | sed '1d' | wc -l`
         echo ${machine_status}_not_running
 
 final_report(){
@@ -48,7 +48,7 @@ final_report(){
        echo -e "\n"
         sleep 1
 
-       if [[ $pod_status > 1 ]]
+       if [[ $pod_status > 0 ]]
        then
              echo "  2. Pod Health Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
@@ -57,7 +57,7 @@ final_report(){
        echo -e "\n"
         sleep 1
 
-       if [[ $node_status > 1 ]]
+       if [[ $node_status > 0 ]]
        then
              echo "  3. Node Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
@@ -75,7 +75,7 @@ final_report(){
        echo -e "\n"
         sleep 1
 
-       if [[ $pvc_status > 1 ]]
+       if [[ $pvc_status > 0 ]]
        then
              echo "  5. PVC Bound Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
@@ -84,7 +84,7 @@ final_report(){
        echo -e "\n"
         sleep 1
 
-       if [[ $bmh_status > 1 ]]
+       if [[ $bmh_status > 0 ]]
        then
              echo "  6. BMH Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
@@ -93,7 +93,7 @@ final_report(){
        echo -e "\n"
         sleep 1
 
-       if [[ $machine_status > 1 ]]
+       if [[ $machine_status > 0 ]]
        then
              echo "  7. Machine Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
