@@ -1,0 +1,304 @@
+#!/bin/bash
+clear
+#Date Variable
+Today=`date +%d_%m_%Y`
+echo "***********************"
+echo "* Today is $Today *"
+echo "***********************"
+echo
+# HostName Variable
+HTName=`hostname -s`
+
+LOGFILE="HealthCheck-Report-${HTName}_${Today}"
+echo > $LOGFILE
+echo
+echo "******************************************************************"
+echo "* This Healthcheck is running from Host '$HTName' *"
+echo "******************************************************************"
+echo -e "\n\n\n"
+
+        active_alarm_list=`curl http://"$(kubectl get svc -n monitoring | grep eric-pm-alertmanager | awk '{ print $3 }')":9093/api/v1/alerts | python -mjson.tool|grep description | awk -F ":" '{print $2}' | wc -l`
+        echo ${active_alarm_list}_active_alarms
+
+        pod_status=`kubectl get pods -A -o wide | grep -v -e Running -e Succeeded -e Completed |wc -l`
+        echo ${pod_status}_pod_in_error
+
+        node_status=`kubectl get nodes -A -o wide | grep -v -e Ready | wc -l`
+        echo ${node_status}_node_not_ready
+
+        service_status=`kubectl get service -A | grep -i error | wc -l`
+        echo ${service_status}_service_in_error
+
+        pvc_status=`kubectl get pvc -A | grep -v -e Bound | wc -l`
+        echo ${pvc_status}_pvc_not_bound
+
+        bmh_status=`kubectl get bmh -A | grep -v -e provisioned | wc -l`
+        echo ${bmh_status}_not_provisioned
+
+        machine_status=`kubectl get machine -A | grep -v -e Running | wc -l`
+        echo ${machine_status}_not_running
+
+final_report(){
+       if [[  $active_alarm_list > 0 ]]
+       then
+             echo "  1. Active Alarm Result  -  |   FAILED   |" | tee -a $LOGFILE
+       else
+             echo "  1. Active Alarm Result  -  |   PASSED   |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+        sleep 1
+
+       if [[ $pod_status > 1 ]]
+       then
+             echo "  2. Pod Health Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo "  2. Pod Health Status    -  |   PASSED  |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+        sleep 1
+
+       if [[ $node_status > 1 ]]
+       then
+             echo "  3. Node Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo "  3. Node Status    -  |   PASSED  |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+        sleep 1
+
+       if [[ $service_status > 0 ]]
+       then
+             echo "  4. Service Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo "  4. Service Status    -  |   PASSED  |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+        sleep 1
+
+       if [[ $pvc_status > 1 ]]
+       then
+             echo "  5. PVC Bound Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo "  5. PVC Bound Status    -  |   PASSED  |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+        sleep 1
+
+       if [[ $bmh_status > 1 ]]
+       then
+             echo "  6. BMH Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo "  6. BMH Status    -  |   PASSED  |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+        sleep 1
+
+       if [[ $machine_status > 1 ]]
+       then
+             echo "  7. Machine Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo "  7. Machine Status    -  |   PASSED  |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+
+}
+k=0
+while [ $k = 0 ]
+do
+        echo
+        echo "##########################################################"
+        echo "# SELECT number from below list for required Healtcheck. #"
+        echo "##########################################################"
+        echo
+        echo "1 Active Alarms"
+        echo "2 Pods Status"
+        echo "3 Node Status"
+        echo "4 Services"
+        echo "5 PVC Status"
+        echo "6 BMH Status"
+        echo "7 Machine Status"
+        echo "8 Calico BGP Full Mesh Peer Status"
+        echo "9 ECFE Speakers Status"
+        echo "10 CEPH Status"
+        echo "11 ECCD Cluster Status"
+        echo
+        echo "Press 'q' to EXIT"
+        echo
+        read input
+
+        case "$input" in
+                1)
+                echo
+                echo "*****************************************************"
+                echo "*****************************************************"
+                echo "** Below is the Active alarms List for the cluster **"
+                echo "*****************************************************"
+                echo "*****************************************************"
+                echo
+                echo "$active_alarm_func" | tee -a $LOGFILE
+                aal=`curl http://"$(kubectl get svc -n monitoring | grep eric-pm-alertmanager | awk '{ print $3 }')":9093/api/v1/alerts | python -mjson.tool|grep description | awk -F ":" '{print $2}'`
+                echo
+                echo "$aal"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                2)
+                echo
+                echo "****************************************************************"
+                echo "****************************************************************"
+                echo "** Below are the Pods except Running, Succeeded and Completed **"
+                echo "****************************************************************"
+                echo "****************************************************************"
+                echo
+                pods=`kubectl get pods -A -o wide | grep -v -e Running -e Succeeded -e Completed`
+                echo
+                echo "$pods"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                3)
+                echo
+                echo "******************************************************"
+                echo "******************************************************"
+                echo "** Below is the status for Nodes not in READY state **"
+                echo "******************************************************"
+                echo "******************************************************"
+                echo
+                nodes=`kubectl get nodes -A -o wide | grep -v -e Ready`
+                echo
+                echo "$nodes"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                4)
+                echo
+                echo "***********************************************"
+                echo "***********************************************"
+                echo "** Below are the services running in Cluster **"
+                echo "***********************************************"
+                echo "***********************************************"
+                echo
+                sleep 3
+                services=`kubectl get service -A`
+                echo
+                echo "$services"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                5)
+                echo
+                echo "**********************************************************"
+                echo "**********************************************************"
+                echo "** Below is the PVC Status which are not in Bound State **"
+                echo "**********************************************************"
+                echo "**********************************************************"
+                echo
+                pvc=`kubectl get pvc -A | grep -v -e Bound`
+                echo
+                echo "$pvc"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                6)
+                echo
+                echo "***************************************************"
+                echo "***************************************************"
+                echo "** Below is the BMH Status for the Cluster Nodes **"
+                echo "***************************************************"
+                echo "***************************************************"
+                echo
+                bmh=`kubectl get bmh -A`
+                sleep 3
+                echo "$bmh"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                7)
+                echo
+                echo "********************************************************************************"
+                echo "********************************************************************************"
+                echo "** Below is the Machine Status for the Cluster which are not in Running State **"
+                echo "********************************************************************************"
+                echo "********************************************************************************"
+                echo
+                machine=`kubectl get machine -A | grep -v -e Running`
+                sleep 3
+                echo "$machine"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                8)
+                echo
+                echo "***************************************************"
+                echo "***************************************************"
+                echo "** Below is the Calico Full Mesh BGP Peer Status **"
+                echo "***************************************************"
+                echo "***************************************************"
+                echo
+                calico_bgp=`sudo /usr/local/bin/calicoctl node status`
+                sleep 3
+                echo "$calico_bgp"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                9)
+                echo
+                echo "***************************************"
+                echo "***************************************"
+                echo "** Below is the ECFE Speakers Status **"
+                echo "***************************************"
+                echo "***************************************"
+                echo
+                ecfe_speakers=`kubectl get pods -n kube-system | grep speaker`
+                sleep 3
+                echo "$ecfe_speakers"
+                read -p "Press enter to continue"
+                echo
+                ;;
+                10)
+                echo
+                echo "***************************************"
+                echo "***************************************"
+                echo "** Below is the CEPH Cluster Status **"
+                echo "***************************************"
+                echo "***************************************"
+                echo
+                #ceph=`ceph -s`
+                echo `/usr/share/ceph -s` # Not Working
+                read -p "Press enter to continue"
+                echo
+                ;;
+                11)
+                status=False
+                errors=""
+                clear
+                echo
+                echo "***************************************"
+                echo "***************************************"
+                echo "** Below is the ECCD Cluster Status **"
+                echo "***************************************"
+                echo "***************************************"
+                echo
+                echo "Running Active alarms List for the cluster... "
+                sleep 3
+                echo -e "\n"
+                #aal=`curl http://"$(kubectl get svc -n monitoring | grep eric-pm-alertmanager | awk '{ print $3 }')":9093/api/v1/alerts | python -mjson.tool|grep description | awk -F ":" '{print $2}'`
+                final_report
+                echo -e "\n"
+                read -p "Press enter to continue"
+                clear
+                echo
+                ;;
+                q)
+                k=1
+                echo "Exitting....."
+                echo
+                sleep 1
+                ;;
+                *)
+                clear
+                echo "Please Choose Appropriate Option :)"
+                echo
+                sleep 3
+        esac
+done
