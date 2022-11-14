@@ -1,13 +1,15 @@
 #!/bin/bash
 clear
 #Date Variable
-Today=`date +%d_%m_%Y`
-echo "***********************"
+Today=`date +%d_%m_%Y_%H_%M`
+echo "*****************************"
 echo "* Today is $Today *"
-echo "***********************"
+echo "*****************************"
 echo
 # HostName Variable
 HTName=`hostname -s`
+
+ceph_status=""
 
 LOGFILE="HealthCheck-Report-${HTName}_${Today}"
 echo > $LOGFILE
@@ -23,27 +25,36 @@ echo -e "\n\n\n"
         pod_status=`kubectl get pods -A | grep -v -e Running -e Succeeded -e Completed |wc -l`
         echo ${pod_status}_pod_in_error
 
-        node_status=`kubectl get nodes -A -o wide | grep -v -e Ready | sed '1d' | wc -l`
+        node_status=`kubectl get nodes -A -o wide | grep -v Ready | sed '1d' | wc -l`
         echo ${node_status}_node_not_ready
 
         service_status=`kubectl get service -A | grep -i error | wc -l`
         echo ${service_status}_service_in_error
 
-        pvc_status=`kubectl get pvc -A | grep -v -e Bound | sed '1d' | wc -l`
+        pvc_status=`kubectl get pvc -A | grep -v Bound | sed '1d' | wc -l`
         echo ${pvc_status}_pvc_not_bound
 
-        bmh_status=`kubectl get bmh -A | grep -v -e provisioned | sed '1d' | wc -l`
+        bmh_status=`kubectl get bmh -A | grep -v provisioned | sed '1d' | wc -l`
         echo ${bmh_status}_not_provisioned
 
-        machine_status=`kubectl get machine -A | grep -v -e Running | sed '1d' | wc -l`
+        machine_status=`kubectl get machine -A | grep -v Running | sed '1d' | wc -l`
         echo ${machine_status}_not_running
+
+                calico_status=`sudo /usr/local/bin/calicoctl node status | grep -i down | wc -l`
+                echo ${calico_status}_calico_peers_down
+
+        ecfe_speaker_status=`kubectl get pods -n kube-system | grep -v Running | sed '1d' | wc -l`
+                echo ${ecfe_speaker_status}_ecfe_speaker_down
+
+        ceph_status=`kubectl -n rook-ceph exec  $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{.items[0].metadata.name}') -- ceph status | grep -i health |sed '$d'| awk -F ":" '{print $2}'`
+        echo ceph_cluster_is_in_${ceph_status}
 
 final_report(){
        if [[  $active_alarm_list > 0 ]]
        then
              echo "  1. Active Alarm Result  -  |   FAILED   |" | tee -a $LOGFILE
        else
-             echo "  1. Active Alarm Result  -  |   PASSED   |" | tee -a $LOGFILE
+             echo -e "  1. Active Alarm Result  -  |   \e[1;32m PASSED \e[0m    |" | tee -a $LOGFILE
        fi
        echo -e "\n"
         sleep 1
@@ -52,53 +63,80 @@ final_report(){
        then
              echo "  2. Pod Health Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
-             echo "  2. Pod Health Status    -  |   PASSED  |" | tee -a $LOGFILE
+             echo -e "  2. Pod Health Status    -  |   \e[1;32m PASSED \e[0m   |" | tee -a $LOGFILE
        fi
        echo -e "\n"
         sleep 1
 
        if [[ $node_status > 0 ]]
        then
-             echo "  3. Node Status    -  |   FAILED  |" | tee -a $LOGFILE
+             echo  "  3. Node Status    -  |  FAILED  |" | tee -a $LOGFILE
        else
-             echo "  3. Node Status    -  |   PASSED  |" | tee -a $LOGFILE
+             echo  -e "  3. Node Status    -  |   \e[1;32m PASSED \e[0m  |" | tee -a $LOGFILE
        fi
        echo -e "\n"
         sleep 1
 
        if [[ $service_status > 0 ]]
        then
-             echo "  4. Service Status    -  |   FAILED  |" | tee -a $LOGFILE
+             echo  "  4. Service Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
-             echo "  4. Service Status    -  |   PASSED  |" | tee -a $LOGFILE
+             echo  -e "  4. Service Status    -  |   \e[1;32m PASSED \e[0m   |" | tee -a $LOGFILE
        fi
        echo -e "\n"
         sleep 1
 
        if [[ $pvc_status > 0 ]]
        then
-             echo "  5. PVC Bound Status    -  |   FAILED  |" | tee -a $LOGFILE
+             echo  "  5. PVC Bound Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
-             echo "  5. PVC Bound Status    -  |   PASSED  |" | tee -a $LOGFILE
+             echo  -e "  5. PVC Bound Status    -  |   \e[1;32m PASSED \e[0m   |" | tee -a $LOGFILE
        fi
        echo -e "\n"
         sleep 1
 
        if [[ $bmh_status > 0 ]]
        then
-             echo "  6. BMH Status    -  |   FAILED  |" | tee -a $LOGFILE
+             echo  "  6. BMH Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
-             echo "  6. BMH Status    -  |   PASSED  |" | tee -a $LOGFILE
+             echo  -e "  6. BMH Status    -  |   \e[1;32m PASSED \e[0m   |" | tee -a $LOGFILE
        fi
        echo -e "\n"
         sleep 1
 
        if [[ $machine_status > 0 ]]
        then
-             echo "  7. Machine Status    -  |   FAILED  |" | tee -a $LOGFILE
+             echo  "  7. Machine Status    -  |   FAILED  |" | tee -a $LOGFILE
        else
-             echo "  7. Machine Status    -  |   PASSED  |" | tee -a $LOGFILE
+             echo  -e "  7. Machine Status    -  |   \e[1;32m PASSED \e[0m   |" | tee -a $LOGFILE
        fi
+       echo -e "\n"
+
+           if [[ $calico_status > 0 ]]
+       then
+             echo  "  8. Calico BGP Full Mesh Peer Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo  -e "  8. Calico BGP Full Mesh Peer Status   -  |   \e[1;32m PASSED \e[0m   |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+
+           if [[ $ecfe_speaker_status > 0 ]]
+       then
+             echo  "  9. ECFE Speaker Status    -  |   FAILED  |" | tee -a $LOGFILE
+       else
+             echo  -e "  9. ECFE Speaker Status   -  |   \e[1;32m PASSED \e[0m   |" | tee -a $LOGFILE
+       fi
+       echo -e "\n"
+
+       if [[ "$ceph_status" = " HEALTH_OK" ]]
+       then
+             echo -e "  10. CEPH Cluster Status    -  |   \e[1;32m PASSED \e[0m  |" | tee -a $LOGFILE
+       elif [[ "$ceph_status" = " HEALTH_WARN" ]]
+       then
+             echo -e "  10. CEPH Cluster Status    -  |   \e[1;33m WARNING \e[0m  |" | tee -a $LOGFILE
+       else [[ "$ceph_status" = " HEALTH_FAILED" ]]
+             echo  "  10. CEPH Cluster Status    -  |   FAILED  |" | tee -a $LOGFILE
+        fi
        echo -e "\n"
 
 }
@@ -263,8 +301,9 @@ do
                 echo "***************************************"
                 echo "***************************************"
                 echo
-                #ceph=`ceph -s`
-                echo `/usr/share/ceph -s` # Not Working
+                ceph_status=`kubectl -n rook-ceph exec  $(kubectl -n rook-ceph get pod -l "app=rook-ceph-tools" -o jsonpath='{.items[0].metadata.name}') -- ceph status`
+                sleep 1
+                echo "$ceph_status"
                 read -p "Press enter to continue"
                 echo
                 ;;
@@ -291,7 +330,7 @@ do
                 ;;
                 q)
                 k=1
-                echo "Exitting....."
+                echo "Exiting....."
                 echo
                 sleep 1
                 ;;
